@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* Custom styles for email rendering because we don't have the typography plugin */
+.email-body-content {
+    color: #1f2937 !important; /* Force readable text color */
+    line-height: 1.625;
+    font-size: 1rem;
+    word-break: break-word;
+    overflow-x: auto;
+}
+
+/* Force readable colors for common elements to override problematic inline email styles */
+.email-body-content p, 
+.email-body-content span, 
+.email-body-content div, 
+.email-body-content li, 
+.email-body-content td {
+    color: inherit !important;
+}
+
+.email-body-content h1 { font-size: 1.875rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 1rem; }
+.email-body-content h2 { font-size: 1.5rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.75rem; }
+.email-body-content h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
+.email-body-content p { margin-bottom: 1rem; }
+.email-body-content a { color: #2563eb; text-decoration: underline; }
+.email-body-content ul { list-style-type: disc; list-style-position: inside; margin-bottom: 1rem; padding-left: 1rem; }
+.email-body-content ol { list-style-type: decimal; list-style-position: inside; margin-bottom: 1rem; padding-left: 1rem; }
+.email-body-content table { border-collapse: collapse; margin-bottom: 1rem; width: 100%; }
+
+/* Most HTML emails use tables for layout. We should NOT show borders by default */
+.email-body-content th, .email-body-content td { 
+    border: none; 
+    padding: 0.25rem; 
+    text-align: left; 
+}
+
+.email-body-content blockquote { border-left: 4px solid #e5e7eb; padding-left: 1rem; font-style: italic; margin: 1rem 0; }
+.email-body-content img { max-width: 100%; height: auto; border-radius: 0.375rem; margin: 1rem 0; }
+
+/* Thin grey lines (HRs) are often redundant in processed emails */
+.email-body-content hr { 
+    display: none; 
+}
+
+.email-body-content code { background-color: #f9fafb; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+
+/* In case it's pure plain text (no HTML children), we ensure it wraps line breaks */
+/* This is a simple heuristic: if it has no elements but has text, we use pre-wrap */
+.email-body-content:not(:has(*)) {
+    white-space: pre-wrap;
+}
+
+/* If the email body has some children but they are mostly text, we still want to preserve layout */
+/* For example, plain text might be returned with some <br> by simple parsers, or not at all */

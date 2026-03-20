@@ -1,0 +1,64 @@
+# Python-specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment Variables
+.env
+db.sqlite3
+dump.rdb
+
+# Logs
+*.log
+
+# Deployment
+.render/
+instance/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Django specific:
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+static/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
