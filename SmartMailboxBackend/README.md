@@ -1,130 +1,44 @@
-# Smart Mailbox Summarizer Backend
+# Smart Mailbox Backend
 
-A production-ready Django REST API backend for managing email mailboxes, emails, and tasks with ML/NLP integration capabilities.
+A Django REST API powering the Smart Mailbox ecosystem with AI-driven categorization and task management.
 
-## 🚀 Quick Start
+## 🚀 API Features
 
-### Prerequisites
-- Python 3.8+
-- pip
+- **Advanced Filtering**: Filter emails by `sender`, `category`, `mailbox`, `received_at` (range), and `has_attachments`.
+- **Full-Text Search**: Search across `subject`, `sender`, `body`, and `summary`.
+- **Calendar Integration**: Export tasks to standard `.ics` format.
+- **AI Processing**: Dedicated endpoints for classification, summarization, and task extraction.
+- **Periodic Sync**: Automated mailbox fetching using Celery Beat.
 
-### Installation
+## 🛠️ Endpoints
+
+### Emails
+- `GET /api/emails/` - Supports `?search=`, `?category=`, `?received_at_after=`, etc.
+- `POST /api/emails/classify/` - Trigger batch classification.
+- `POST /api/emails/summarize/` - Trigger batch summarization.
+- `POST /api/emails/extract-tasks/` - Trigger task extraction.
+
+### Tasks
+- `GET /api/tasks/` - List all extracted tasks.
+- `GET /api/tasks/{id}/export-ics/` - Download a single task .ics.
+- `GET /api/tasks/export-calendar/` - Download all tasks as a calendar.
+- `POST /api/tasks/run-reminders/` - Manual reminder check.
+
+## 🏗️ Setup & Development
 
 ```bash
-cd SmartMailboxBackend
-source venv/bin/activate  # Already created
+# Activation
+source venv/bin/activate
+
+# Server
 python manage.py runserver
+
+# Background Workers (Required for Sync/AI)
+celery -A config worker -l info
+celery -A config beat -l info
 ```
 
-### Test the API
-
-```bash
-python test_api.py
-```
-
-## 📚 API Documentation
-
-### Base URL
-```
-http://localhost:8000/api/
-```
-
-### Endpoints
-
-#### Mailboxes
-- `GET /api/mailboxes/` - List mailboxes
-- `POST /api/mailboxes/` - Create mailbox
-- `GET /api/mailboxes/{id}/` - Get mailbox details
-
-#### Emails
-- `GET /api/emails/` - Unified inbox
-- `GET /api/emails/mailbox/{id}/` - Emails for specific mailbox
-- `POST /api/emails/` - Create email
-- `GET /api/emails/{id}/` - Email details
-
-**Filters**: `?category=CRITICAL`, `?mailbox=1`
-
-#### Tasks
-- `GET /api/tasks/` - List tasks
-- `POST /api/tasks/` - Create task
-- `GET /api/tasks/{id}/` - Task details
-
-**Filters**: `?reminder_sent=false`
-
-## 🏗️ Project Structure
-
-```
-SmartMailboxBackend/
-├── config/          # Django settings
-├── mailboxes/       # Mailbox app
-├── emails/          # Email app
-├── tasks/           # Task app
-├── accounts/        # User accounts (future)
-└── test_api.py      # API tests
-```
-
-## 📊 Models
-
-### Mailbox
-- `provider`: Email provider (GMAIL, OUTLOOK, etc.)
-- `email_address`: Email address (unique)
-- `is_active`: Active status
-
-### Email
-- `subject`, `sender`, `body`: Email content
-- `received_at`: Timestamp
-- `category`: CRITICAL, OPPORTUNITY, INFO, JUNK (ML-ready)
-- `summary`: AI-generated summary (nullable)
-- `extracted_deadline`: NLP-extracted deadline (nullable)
-- `mailbox`: Foreign key to Mailbox
-
-### Task
-- `action_text`: Task description
-- `deadline`: Due date
-- `reminder_sent`: Reminder status
-- `email`: Foreign key to Email
-
-## 🔧 Tech Stack
-
-- **Framework**: Django 6.0.1
-- **API**: Django REST Framework 3.16.1
-- **Database**: SQLite (dev), PostgreSQL-ready
-- **Filtering**: django-filter
-
-## 🎯 Features
-
-✅ Full CRUD operations for all models  
-✅ Unified inbox across multiple mailboxes  
-✅ Advanced filtering and search  
-✅ Pagination (20 items/page)  
-✅ ML-ready fields for future integration  
-✅ Django Admin interface  
-✅ Browsable API  
-
-## 🔮 Future Enhancements
-
-- **Sprint 2**: JWT authentication
-- **Sprint 3**: ML/NLP integration (categorization, summarization)
-- **Sprint 4**: Email fetching (IMAP, OAuth2)
-- **Sprint 5**: Reminder notifications
-
-## 📝 Admin Panel
-
-Create a superuser:
-```bash
-python manage.py createsuperuser
-```
-
-Access at: `http://localhost:8000/admin/`
-
-## 🧪 Testing
-
-All endpoints tested and verified:
-- Mailbox CRUD ✅
-- Email operations ✅
-- Task management ✅
-- Filtering & search ✅
-
-## 📄 License
-
-This project is for the PEP Project.
+## 📚 Tech Details
+- **Django Filters**: Custom `EmailFilter` for complex date/relational queries.
+- **Icalendar**: RFC 5545 compliant calendar generation.
+- **Gemini SDK**: Version 0.7.2+ for Flash processing.

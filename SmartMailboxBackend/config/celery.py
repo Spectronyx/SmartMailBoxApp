@@ -15,6 +15,14 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks()
 
+# Periodic Tasks Schedule
+app.conf.beat_schedule = {
+    'sync-all-mailboxes-every-5-minutes': {
+        'task': 'mailboxes.sync_all_mailboxes',
+        'schedule': 300.0,  # Every 5 minutes (300 seconds)
+    },
+}
+
 @app.task(bind=True, ignore_result=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')

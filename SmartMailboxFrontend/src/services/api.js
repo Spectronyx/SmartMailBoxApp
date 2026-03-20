@@ -40,6 +40,8 @@ export const mailboxService = {
   create: (data) => api.post('/mailboxes/', data),
   sync: (id) => api.post(`/mailboxes/${id}/sync_emails/`),
   delete: (id) => api.delete(`/mailboxes/${id}/`),
+  getSyncSettings: () => api.get('/mailboxes/sync_settings/'),
+  updateSyncSettings: (minutes) => api.post('/mailboxes/sync_settings/', { interval_minutes: minutes }),
 };
 
 export const emailService = {
@@ -58,6 +60,8 @@ export const taskService = {
   update: (id, data) => api.patch(`/tasks/${id}/`, data),
   delete: (id) => api.delete(`/tasks/${id}/`),
   runReminders: () => api.post('/tasks/run-reminders/'),
+  exportIcs: (id) => `http://localhost:8000/api/tasks/${id}/export-ics/`,
+  exportCalendar: () => `http://localhost:8000/api/tasks/export-calendar/`,
 };
 
 export default api;

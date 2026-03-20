@@ -48,6 +48,71 @@ class MailboxViewSet(viewsets.ModelViewSet):
         """Assign the mailbox to the current user."""
         serializer.save(user=self.request.user)
     
+    @action(detail=False, methods=['get', 'post'], url_path='sync_settings')
+    def sync_settings(self, request):
+        """
+        Get or update the global sync interval for all mailboxes.
+        
+        GET /api/mailboxes/sync_settings/
+        POST /api/mailboxes/sync_settings/ {'interval_minutes': int}
+        """
+        from django_celery_beat.models import PeriodicTask, IntervalSchedule
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        task_name = 'sync-all-mailboxes-every-5-minutes' # Default name from celery.py
+        
+        if request.method == 'GET':
+            try:
+                task = PeriodicTask.objects.get(name=task_name)
+                return Response({
+                    'interval_minutes': task.interval.every,
+                    'period': task.interval.period,
+                    'is_active': task.enabled
+                })
+            except PeriodicTask.DoesNotExist:
+                # If not in DB, it might be in celery.py defaults
+                return Response({
+                    'interval_minutes': 5,
+                    'period': 'minutes',
+                    'is_active': True,
+                    'note': 'Using system defaults'
+                })
+
+        # POST: Update interval
+        interval_minutes = request.data.get('interval_minutes')
+        if not interval_minutes or not isinstance(interval_minutes, int) or interval_minutes < 1:
+            return Response({'error': 'Invalid interval_minutes. Must be at least 1.'}, status=400)
+
+        try:
+            # Get or create the interval schedule
+            schedule, created = IntervalSchedule.objects.get_or_create(
+                every=interval_minutes,
+                period=IntervalSchedule.MINUTES,
+            )
+            
+            # Get or create the periodic task
+            task, created = PeriodicTask.objects.get_or_create(
+                name=task_name,
+                defaults={
+                    'task': 'mailboxes.sync_all_mailboxes',
+                    'interval': schedule,
+                    'enabled': True,
+                }
+            )
+            
+            if not created:
+                task.interval = schedule
+                task.save()
+                
+            return Response({
+                'message': f'Sync interval updated to {interval_minutes} minutes.',
+                'interval_minutes': interval_minutes
+            })
+        except Exception as e:
+            logger.exception("Failed to update sync settings")
+            return Response({'error': str(e)}, status=500)
+
     @action(detail=True, methods=['post'], url_path='sync_emails')
     def sync_emails(self, request, pk=None):
         """

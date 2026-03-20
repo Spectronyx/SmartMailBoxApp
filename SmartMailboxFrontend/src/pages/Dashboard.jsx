@@ -76,14 +76,15 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <div className="text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+        <div className="text-sm text-gray-500 dark:text-gray-400 font-medium bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full uppercase tracking-widest text-[10px]">
           Anti-Anxiety Mode: ON
         </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* StatCards already handle dark mode */}
         <StatCard
           title="Total Emails"
           value={stats.totalEmails}
@@ -115,17 +116,24 @@ const Dashboard = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Email Composition</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 transition-all duration-300">
+        <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Email Composition</h2>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.categoryData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" />
-              <YAxis />
+            <BarChart data={stats.categoryData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" strokeOpacity={0.1} />
+              <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
               <Tooltip
                 cursor={{ fill: 'transparent' }}
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                contentStyle={{ 
+                  backgroundColor: '#111827', 
+                  borderRadius: '8px', 
+                  border: 'none', 
+                  color: '#f9fafb',
+                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.3)' 
+                }}
+                itemStyle={{ color: '#f9fafb' }}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]} />
             </BarChart>

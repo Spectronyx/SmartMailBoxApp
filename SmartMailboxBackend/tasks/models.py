@@ -31,6 +31,10 @@ class Task(models.Model):
         default=False,
         help_text="Whether a reminder has been sent for this task"
     )
+    is_completed = models.BooleanField(
+        default=False,
+        help_text="Whether this task has been marked as completed"
+    )
     
     # Relationships
     email = models.ForeignKey(
@@ -47,9 +51,10 @@ class Task(models.Model):
     class Meta:
         verbose_name = "Task"
         verbose_name_plural = "Tasks"
-        ordering = ['deadline']
+        ordering = ['is_completed', 'deadline', '-created_at']
         indexes = [
             models.Index(fields=['deadline']),
+            models.Index(fields=['is_completed', 'deadline']),
             models.Index(fields=['reminder_sent', 'deadline']),
         ]
     

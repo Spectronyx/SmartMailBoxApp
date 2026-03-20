@@ -1,32 +1,48 @@
 import React, { useEffect, useState } from 'react';
-import { mailboxService, emailService } from '../services/api';
+import { Plus, RefreshCw, Trash2, Mail } from 'lucide-react';
+import { mailboxService } from '../services/api';
 import { authService } from '../services/auth';
-import { Plus, RefreshCw, Trash2, Mail, RotateCcw, ShieldCheck, ShieldAlert, ExternalLink } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { clsx } from 'clsx';
 
 const MailboxManager = () => {
     const [mailboxes, setMailboxes] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [syncing, setSyncing] = useState(null);
-    const [resetting, setResetting] = useState(false);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [newMailbox, setNewMailbox] = useState({
-        email_address: '',
-        provider: 'GMAIL',
-        is_active: true,
-        imap_server: '',
+    const [showConnectModal, setShowConnectModal] = useState(false);
+    const [imapData, setImapData] = useState({
+        email: '',
         password: ''
     });
+
+    const [syncInterval, setSyncInterval] = useState(5);
+    const [updatingInterval, setUpdatingInterval] = useState(false);
 
     const fetchMailboxes = async () => {
         try {
             setLoading(true);
-            const response = await mailboxService.getAll();
-            setMailboxes(response.data.results || []);
+            const [mbRes, settingsRes] = await Promise.all([
+                mailboxService.getAll(),
+                mailboxService.getSyncSettings().catch(() => ({ data: { interval_minutes: 5 } }))
+            ]);
+            setMailboxes(mbRes.data.results || []);
+            setSyncInterval(settingsRes.data.interval_minutes);
         } catch (error) {
             console.error("Failed to fetch mailboxes", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUpdateInterval = async (val) => {
+        try {
+            setUpdatingInterval(true);
+            await mailboxService.updateSyncSettings(val);
+            setSyncInterval(val);
+        } catch (error) {
+            console.error("Failed to update interval", error);
+            alert("Failed to update sync frequency.");
+        } finally {
+            setUpdatingInterval(false);
         }
     };
 
@@ -36,21 +52,39 @@ const MailboxManager = () => {
             window.location.href = url;
         } catch (error) {
             console.error("Failed to get Google Auth URL", error);
-            alert("Could not connect to Google. Check your configuration.");
         }
     };
 
-    const handleReset = async () => {
-        if (!window.confirm("This will delete ALL emails and tasks across all mailboxes. Continue?")) return;
+    const handleImapConnect = async () => {
         try {
-            setResetting(true);
-            const res = await emailService.clearData();
-            alert(res.data.message);
+            await mailboxService.connectImap(imapData);
+            setShowConnectModal(false);
+            setImapData({ email: '', password: '' });
             fetchMailboxes();
         } catch (error) {
-            console.error("Reset failed", error);
-        } finally {
-            setResetting(false);
+            console.error("Failed to connect IMAP", error);
+            alert("Failed to connect account. Please check your credentials.");
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm("Are you sure you want to remove this mailbox?")) {
+            try {
+                await mailboxService.delete(id);
+                fetchMailboxes();
+            } catch (error) {
+                console.error("Failed to delete mailbox", error);
+            }
+        }
+    };
+
+    const handleSync = async (id) => {
+        try {
+            await mailboxService.sync(id);
+            alert("Sync started successfully!");
+            fetchMailboxes();
+        } catch (error) {
+            console.error("Sync failed", error);
         }
     };
 
@@ -58,237 +92,148 @@ const MailboxManager = () => {
         fetchMailboxes();
     }, []);
 
-    const handleSync = async (id) => {
-        try {
-            setSyncing(id);
-            const res = await mailboxService.sync(id);
-            alert(res.data.message);
-            await fetchMailboxes();
-        } catch (error) {
-            console.error("Sync failed", error);
-            alert(error.response?.data?.details || "Sync failed. Check credentials.");
-        } finally {
-            setSyncing(null);
-        }
-    };
-
-    const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this mailbox?")) return;
-
-        try {
-            await mailboxService.delete(id);
-            setMailboxes(mailboxes.filter(m => m.id !== id));
-        } catch (error) {
-            console.error("Delete failed", error);
-        }
-    };
-
-    const handleAddSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            await mailboxService.create(newMailbox);
-            setShowAddForm(false);
-            setNewMailbox({ email_address: '', provider: 'GMAIL', is_active: true, imap_server: '', password: '' });
-            fetchMailboxes();
-        } catch (error) {
-            console.error("Create failed", error);
-            alert("Failed to create mailbox.");
-        }
-    };
-
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-[400px]">
-            <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
-        </div>
-    );
-
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Mailbox Settings</h1>
-                    <p className="text-gray-500">Manage your connected email accounts and sync real messages.</p>
-                </div>
-                <div className="flex space-x-3">
-                    <button
-                        onClick={handleReset}
-                        disabled={resetting}
-                        className="flex items-center px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                    >
-                        <RotateCcw className={clsx("w-4 h-4 mr-2", resetting && "animate-spin")} />
-                        Reset Data
-                    </button>
-                    <button
-                        onClick={() => setShowAddForm(!showAddForm)}
-                        className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                        <Plus className="w-5 h-5 mr-1" />
-                        Add Manually
-                    </button>
-                </div>
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Mailbox Settings</h1>
+                <button 
+                  onClick={() => setShowConnectModal(true)}
+                  className="flex items-center px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 shadow-sm transition-all transform active:scale-95"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Account
+                </button>
             </div>
 
-            {/* Quick Connect Section */}
-            {!showAddForm && (
-                <div className="bg-indigo-600 rounded-xl p-6 text-white flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-4 text-center md:text-left">
-                        <div className="p-3 bg-white/10 rounded-lg">
-                            <Mail className="w-8 h-8" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-semibold">Fast Connect with Gmail</h2>
-                            <p className="text-white/80">Connect your Google account to fetch real emails automatically with one click.</p>
-                        </div>
+            {/* Global Sync Settings */}
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                        <RefreshCw className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                     </div>
-                    <button
-                        onClick={handleGoogleConnect}
-                        className="whitespace-nowrap px-6 py-3 bg-white text-indigo-600 font-bold rounded-lg hover:bg-indigo-50 transition-colors flex items-center"
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Background Sync Frequency</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">How often should the system automatically check for new mail?</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <select 
+                        value={syncInterval}
+                        onChange={(e) => handleUpdateInterval(parseInt(e.target.value))}
+                        disabled={updatingInterval}
+                        className={clsx(
+                            "px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-medium text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all",
+                            updatingInterval && "opacity-50 cursor-wait"
+                        )}
                     >
-                        <ExternalLink className="w-5 h-5 mr-2" />
-                        Sign in with Google
-                    </button>
+                        <option value={1}>Every 1 Minute</option>
+                        <option value={5}>Every 5 Minutes</option>
+                        <option value={15}>Every 15 Minutes</option>
+                        <option value={30}>Every 30 Minutes</option>
+                        <option value={60}>Every 1 Hour</option>
+                    </select>
+                    {updatingInterval && <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />}
                 </div>
-            )}
-
-            {showAddForm && (
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6 animate-in slide-in-from-top-2">
-                    <h3 className="text-lg font-medium mb-4">Connect IMAP Account</h3>
-                    <form onSubmit={handleAddSubmit} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                <input
-                                    type="email"
-                                    required
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    value={newMailbox.email_address}
-                                    onChange={e => setNewMailbox({ ...newMailbox, email_address: e.target.value })}
-                                    placeholder="you@gmail.com"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                                <select
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    value={newMailbox.provider}
-                                    onChange={e => setNewMailbox({ ...newMailbox, provider: e.target.value })}
-                                >
-                                    <option value="GMAIL">Gmail</option>
-                                    <option value="OUTLOOK">Outlook</option>
-                                    <option value="IMAP">Custom IMAP</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">IMAP Server</label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    value={newMailbox.imap_server}
-                                    onChange={e => setNewMailbox({ ...newMailbox, imap_server: e.target.value })}
-                                    placeholder="imap.gmail.com"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">App Password</label>
-                                <input
-                                    type="password"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    value={newMailbox.password}
-                                    onChange={e => setNewMailbox({ ...newMailbox, password: e.target.value })}
-                                    placeholder="•••• •••• •••• ••••"
-                                />
-                                <p className="text-xs text-gray-400 mt-1">Use a 16-character Google App Password, not your regular password.</p>
-                            </div>
-                        </div>
-                        <div className="flex justify-end space-x-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowAddForm(false)}
-                                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                            >
-                                Connect IMAP
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
+            </div>
 
             <div className="grid gap-4">
                 {mailboxes.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-200">
-                        <Mail className="mx-auto h-16 w-16 text-gray-300" />
-                        <h3 className="mt-4 text-lg font-medium text-gray-900">No accounts connected</h3>
-                        <p className="mt-2 text-gray-500 max-w-xs mx-auto">Connect your Gmail or IMAP account above to start analyzing your emails.</p>
+                    <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-800">
+                        <Mail className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600" />
+                        <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">No mailboxes connected</h3>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by connecting your first email account.</p>
                     </div>
                 ) : (
-                    mailboxes.map((mailbox) => {
-                        const isConnected = mailbox.provider === 'GMAIL' || (mailbox.imap_server && mailbox.password);
-
-                        return (
-                            <div key={mailbox.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="flex items-center space-x-4">
-                                    <div className={clsx(
-                                        "h-12 w-12 rounded-full flex items-center justify-center font-bold",
-                                        isConnected ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400"
-                                    )}>
-                                        {mailbox.provider[0]}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h3 className="text-lg font-medium text-gray-900 truncate">{mailbox.email_address}</h3>
-                                        <div className="flex items-center mt-1">
-                                            {isConnected ? (
-                                                <span className="flex items-center text-xs text-green-600 font-medium">
-                                                    <ShieldCheck className="w-3 h-3 mr-1" />
-                                                    Connected ({mailbox.provider})
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center text-xs text-amber-600 font-medium">
-                                                    <ShieldAlert className="w-3 h-3 mr-1" />
-                                                    Demo Mode (No Credentials)
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
+                    mailboxes.map((mailbox) => (
+                        <div key={mailbox.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-between transition-all duration-300">
+                            <div className="flex items-center space-x-4">
+                                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full">
+                                    <Mail className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                                 </div>
-
-                                <div className="flex items-center justify-between sm:justify-end gap-3 pt-4 sm:pt-0 border-t sm:border-t-0 border-gray-50">
-                                    <div className="text-right hidden sm:block mr-4">
-                                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Last Sync</p>
-                                        <p className="text-xs text-gray-600">{mailbox.last_synced_at ? new Date(mailbox.last_synced_at).toLocaleTimeString() : 'Never'}</p>
-                                    </div>
-
-                                    <button
-                                        onClick={() => handleSync(mailbox.id)}
-                                        disabled={syncing === mailbox.id}
-                                        className={clsx(
-                                            "flex items-center px-3 py-2 rounded-lg text-sm transition-all",
-                                            syncing === mailbox.id
-                                                ? "bg-indigo-50 text-indigo-600 cursor-not-allowed"
-                                                : "text-indigo-600 hover:bg-indigo-50 border border-indigo-100"
-                                        )}
-                                    >
-                                        <RefreshCw className={clsx("w-4 h-4 mr-2", syncing === mailbox.id && "animate-spin")} />
-                                        {syncing === mailbox.id ? 'Syncing...' : 'Sync Now'}
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(mailbox.id)}
-                                        className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                                        title="Remove Account"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">{mailbox.email_address}</h3>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500 flex items-center mt-0.5">
+                                        <span className="capitalize">{mailbox.provider}</span>
+                                        <span className="mx-2">•</span>
+                                        {mailbox.last_synced_at ? `${formatDistanceToNow(new Date(mailbox.last_synced_at))} ago` : 'Never synced'}
+                                    </p>
                                 </div>
                             </div>
-                        );
-                    })
+                            <div className="flex items-center space-x-2 flex-shrink-0">
+                                <button 
+                                  onClick={() => handleSync(mailbox.id)}
+                                  className="p-2 text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                                  title="Force Sync"
+                                >
+                                  <RefreshCw className="w-5 h-5" />
+                                </button>
+                                <button 
+                                  onClick={() => handleDelete(mailbox.id)}
+                                  className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                  title="Remove Account"
+                                >
+                                  <Trash2 className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    ))
                 )}
             </div>
+
+            {/* Connect Modal */}
+            {showConnectModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 dark:bg-black/80 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-gray-800 overflow-hidden">
+                        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                            <h2 className="text-xl font-bold dark:text-white tracking-tight">Add Account</h2>
+                            <button 
+                                onClick={() => setShowConnectModal(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            >
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-6">
+                            <button
+                                onClick={handleGoogleConnect}
+                                className="w-full flex items-center justify-center space-x-3 px-4 py-3 border-2 border-gray-100 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 font-bold text-gray-700 dark:text-gray-200 transition-all active:scale-[0.98]"
+                            >
+                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                                <span>Connect with Gmail</span>
+                            </button>
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-100 dark:border-gray-800"></span></div>
+                                <div className="relative flex justify-center text-xs uppercase font-black tracking-widest"><span className="bg-white dark:bg-gray-900 px-4 text-gray-400 dark:text-gray-500">Or IMAP</span></div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <input
+                                    type="email"
+                                    placeholder="Email Address"
+                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-gray-100 outline-none transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600"
+                                    value={imapData.email}
+                                    onChange={(e) => setImapData({...imapData, email: e.target.value})}
+                                />
+                                <input
+                                    type="password"
+                                    placeholder="App Password"
+                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-gray-100 outline-none transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600"
+                                    value={imapData.password}
+                                    onChange={(e) => setImapData({...imapData, password: e.target.value})}
+                                />
+                                <button
+                                    onClick={handleImapConnect}
+                                    className="w-full px-4 py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-700 dark:hover:bg-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-none transition-all active:scale-[0.98]"
+                                >
+                                    Connect IMAP Account
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

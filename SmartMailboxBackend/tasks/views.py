@@ -35,6 +35,64 @@ class TaskViewSet(viewsets.ModelViewSet):
     ordering_fields = ['deadline', 'created_at']
     ordering = ['deadline']
     
+    @action(detail=True, methods=['get'], url_path='export-ics')
+    def export_ics(self, request, pk=None):
+        """
+        Export a single task as an ICS file.
+        """
+        from icalendar import Calendar, Event
+        from django.http import HttpResponse
+        from django.utils import timezone
+        
+        task = self.get_object()
+        if not task.deadline:
+            return Response({'error': 'Task has no deadline'}, status=400)
+            
+        cal = Calendar()
+        cal.add('prodid', '-//Smart Mailbox//Task Export//EN')
+        cal.add('version', '2.0')
+        
+        event = Event()
+        event.add('summary', task.action_text)
+        event.add('dtstart', task.deadline)
+        event.add('dtend', task.deadline + timezone.timedelta(hours=1))
+        event.add('description', f"Extracted from email: {task.email.subject}\nSender: {task.email.sender}")
+        event.add('uid', f"task-{task.id}@smartmailbox")
+        
+        cal.add_component(event)
+        
+        response = HttpResponse(cal.to_ical(), content_type='text/calendar')
+        response['Content-Disposition'] = f'attachment; filename="task-{task.id}.ics"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='export-calendar')
+    def export_calendar(self, request):
+        """
+        Export all tasks with deadlines as a full ICS calendar.
+        """
+        from icalendar import Calendar, Event
+        from django.http import HttpResponse
+        from django.utils import timezone
+        
+        tasks = Task.objects.filter(deadline__isnull=False)
+        
+        cal = Calendar()
+        cal.add('prodid', '-//Smart Mailbox//Full Calendar//EN')
+        cal.add('version', '2.0')
+        
+        for task in tasks:
+            event = Event()
+            event.add('summary', task.action_text)
+            event.add('dtstart', task.deadline)
+            event.add('dtend', task.deadline + timezone.timedelta(hours=1))
+            event.add('description', f"From: {task.email.sender}\nEmail: {task.email.subject}")
+            event.add('uid', f"task-{task.id}@smartmailbox")
+            cal.add_component(event)
+            
+        response = HttpResponse(cal.to_ical(), content_type='text/calendar')
+        response['Content-Disposition'] = 'attachment; filename="smart-mailbox-tasks.ics"'
+        return response
+
     @action(detail=False, methods=['post'], url_path='run-reminders')
     def run_reminders(self, request):
         """

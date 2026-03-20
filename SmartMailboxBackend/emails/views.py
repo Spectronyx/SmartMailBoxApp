@@ -17,28 +17,17 @@ class EmailView(viewsets.ModelViewSet):
     
 
 
+from .filters import EmailFilter
+
 class EmailViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Email operations.
-    
-    Provides:
-    - list: GET /api/emails/ (unified inbox - all mailboxes)
-    - create: POST /api/emails/ (for testing; in production, emails are fetched)
-    - retrieve: GET /api/emails/{id}/
-    - update: PUT/PATCH /api/emails/{id}/ (for updating ML fields)
-    - destroy: DELETE /api/emails/{id}/
-    
-    Design Decision: 
-    - Uses EmailListSerializer for list view (performance)
-    - Uses EmailSerializer for detail view (full content)
-    - Supports filtering by mailbox for per-mailbox views
-    - Supports filtering by category for smart filtering
     """
     
     queryset = Email.objects.select_related('mailbox').all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['mailbox', 'category', 'sender']
-    search_fields = ['subject', 'sender', 'body']
+    filterset_class = EmailFilter
+    search_fields = ['subject', 'sender', 'body', 'summary']
     ordering_fields = ['received_at', 'created_at']
     ordering = ['-received_at']
     

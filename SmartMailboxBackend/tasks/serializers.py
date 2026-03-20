@@ -31,6 +31,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'action_text',
             'deadline',
             'reminder_sent',
+            'is_completed',
             'email',
             'email_detail',
             'created_at',

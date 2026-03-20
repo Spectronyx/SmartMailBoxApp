@@ -7,45 +7,43 @@ SmartMailboxApp is a sophisticated email management platform that uses Generativ
 ## 🌟 Key Features
 
 ### 📨 Smart Email Synchronization
-- **Multi-Account Support**: Sync multiple mailboxes (Gmail, Outlook, Yahoo, and generic IMAP).
-- **Gmail API Integration**: Secure OAuth2-based syncing for Gmail accounts.
-- **Robust Header Decoding**: Handles RFC 2047 encoded headers (UTF-8, Base64, etc.) for perfect title and sender rendering.
+- **Multi-Account Support**: Sync multiple mailboxes (Gmail, IMAP).
+- **Gmail API Integration**: Secure OAuth2-based syncing.
+- **Automated Fetching**: Periodic background sync via Celery Beat.
 
 ### 🧠 AI Intelligence Layer
-- **Auto-Classification**: Categorizes emails into CRITICAL, OPPORTUNITY, INFO, or JUNK using a hybrid Gemini AI + Rule-based pipeline.
-- **Abstractive Summarization**: Generates concise, 3-4 sentence summaries of long emails using Gemini 2.0 Flash.
-- **Task Extraction**: Automatically identifies "Action Items" and "Deadlines" from email content.
-- **Privacy-First Cleaning**: Strips HTML, CSS, and scripts before processing to ensure AI models only see relevant text.
+- **Auto-Classification**: CRITICAL, OPPORTUNITY, INFO, or JUNK categorization.
+- **Abstractive Summarization**: Concise summaries using Gemini 2.0 Flash.
+- **Task Extraction**: Automatically identifies "Action Items" and "Deadlines".
 
-### 📋 Task Management
-- **Automated To-Dos**: Extracted tasks are automatically added to your dashboard.
-- **Deadline Tracking**: AI identifies dates like "tomorrow at 5 PM" or "next Friday" and maps them to actual timestamps.
-- **Email Reminders**: (In development) Automated notifications for upcoming deadlines.
+### 📋 Task & Calendar Management
+- **Dashboard Tracking**: View all extracted tasks in a unified view.
+- **Interactive Calendar**: Full-grid calendar view for deadline management.
+- **Universal Export**: Download tasks as `.ics` files or add them to Google Calendar with one click.
 
-### 🎨 Modern Dashboard
-- **Responsive UI**: Built with React, Tailwind CSS, and Vite.
-- **Unified Inbox**: View all your emails from every account in one place.
-- **Clean Rendering**: Sanitzed email body rendering with custom CSS to fix font contrast and layout issues.
+### 🎨 Premium Aesthetics
+- **Global Dark Mode**: Sleek, high-contrast dark theme with system sync.
+- **Micro-Animations**: Fluid transitions and feedback powered by Framer Motion.
+- **Advanced Search**: Powerful full-text search and granular filters (date ranges, attachments).
 
 ## 🏗️ Project Architecture
 
-The project consists of two main components:
-
-- **[SmartMailboxBackend](./SmartMailboxBackend)**: Django REST Framework API with AI processing pipelines and IMAP/OAuth2 integration.
-- **[SmartMailboxFrontend](./SmartMailboxFrontend)**: React single-page application for a seamless user experience.
+- **[SmartMailboxBackend](./SmartMailboxBackend)**: Django REST Framework + Celery + Gemini AI.
+- **[SmartMailboxFrontend](./SmartMailboxFrontend)**: React + Tailwind CSS + Framer Motion.
 
 ## 🚀 Getting Started
 
-### 1. Backend Setup (Django)
+### 1. Backend Setup
 ```bash
 cd SmartMailboxBackend
+source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
-*Note: Requires a `.env` file with `GEMINI_API_KEY`.*
+*Run `celery -A config worker -B` for periodic syncing.*
 
-### 2. Frontend Setup (React)
+### 2. Frontend Setup
 ```bash
 cd SmartMailboxFrontend
 npm install
@@ -54,10 +52,9 @@ npm run dev
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 19, Tailwind CSS 4, Vite, Lucide Icons, Axios.
-- **Backend**: Django 6, Django REST Framework, Celery, Redis.
-- **AI/NLP**: Google Gemini 2.0 Flash, Bleach (Sanitization), Dateparser.
-- **Authentication**: JWT (SimpleJWT) & OAuth2 (Social Auth).
+- **Frontend**: React 19, Tailwind CSS 4, Framer Motion, Lucide Icons, Date-fns.
+- **Backend**: Django 6, DRF, Celery, Redis, Icalendar, Google GenAI.
+- **AI**: Gemini 2.0 Flash.
 
 ## 📄 License
-This project was developed for the PEP Project.
+PEP Project.
