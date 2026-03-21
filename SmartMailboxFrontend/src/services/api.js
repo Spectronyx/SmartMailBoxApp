@@ -2,7 +2,7 @@ import axios from 'axios';
 import { authService } from './auth';
 
 // Use environment variable for API URL (defaults to localhost for development)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smartmailboxapp.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,

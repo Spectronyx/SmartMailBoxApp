@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { authService } from '../services/auth';
+
 
 const GoogleCallback = () => {
     const [loading, setLoading] = useState(true);
@@ -21,9 +22,8 @@ const GoogleCallback = () => {
             }
 
             try {
-                const response = await axios.get(`http://localhost:8000/api/auth/google/callback/?code=${code}`, {
-                    headers: { Authorization: `Bearer ${authService.getAccessToken()}` }
-                });
+                const response = await api.get(`/auth/google/callback/?code=${code}`);
+
 
                 console.log('Google Auth success:', response.data);
                 navigate('/mailboxes', { state: { message: 'Google account linked successfully!' } });

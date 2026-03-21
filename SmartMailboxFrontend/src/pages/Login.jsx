@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { authService } from '../services/auth';
+
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -16,10 +17,11 @@ const Login = () => {
         setError('');
 
         try {
-            const response = await axios.post('http://localhost:8000/api/auth/login/', {
+            const response = await api.post('/auth/login/', {
                 username,
                 password
             });
+
 
             authService.setTokens(response.data.access, response.data.refresh);
             authService.setUser(response.data.user);
@@ -39,9 +41,8 @@ const Login = () => {
                 return;
             }
 
-            const response = await axios.get('http://localhost:8000/api/auth/google/url/', {
-                headers: { Authorization: `Bearer ${authService.getAccessToken()}` }
-            });
+            const response = await api.get('/auth/google/url/');
+
 
             // Redirect to Google consent screen
             window.location.href = response.data.url;
