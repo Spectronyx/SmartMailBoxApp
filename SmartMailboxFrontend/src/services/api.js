@@ -1,14 +1,17 @@
 import axios from 'axios';
 import { authService } from './auth';
 
-// Create axios instance with default config
+// Use environment variable for API URL (defaults to localhost for development)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: `${API_BASE_URL}/api`,
   timeout: 60000, // Increased to 60s for AI processing
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -68,8 +71,9 @@ export const taskService = {
   update: (id, data) => api.patch(`/tasks/${id}/`, data),
   delete: (id) => api.delete(`/tasks/${id}/`),
   runReminders: () => api.post('/tasks/run-reminders/'),
-  exportIcs: (id) => `http://localhost:8000/api/tasks/${id}/export-ics/`,
-  exportCalendar: () => `http://localhost:8000/api/tasks/export-calendar/`,
+  exportIcs: (id) => `${API_BASE_URL}/api/tasks/${id}/export-ics/`,
+  exportCalendar: () => `${API_BASE_URL}/api/tasks/export-calendar/`,
 };
+
 
 export default api;
