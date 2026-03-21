@@ -9,13 +9,11 @@ const MailboxManager = () => {
     const [mailboxes, setMailboxes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showConnectModal, setShowConnectModal] = useState(false);
-    const [imapData, setImapData] = useState({
-        email: '',
-        password: ''
-    });
-
+    const [imapData, setImapData] = useState({ email: '', password: '' });
     const [syncInterval, setSyncInterval] = useState(5);
     const [updatingInterval, setUpdatingInterval] = useState(false);
+    const [syncingIds, setSyncingIds] = useState(new Set());
+    const [syncMessages, setSyncMessages] = useState({});
 
     const fetchMailboxes = async () => {
         try {
@@ -79,14 +77,80 @@ const MailboxManager = () => {
     };
 
     const handleSync = async (id) => {
+        if (syncingIds.has(id)) return; // Already syncing
+
+        setSyncingIds(prev => new Set(prev).add(id));
+        setSyncMessages(prev => ({ ...prev, [id]: 'Starting sync...' }));
+
         try {
-            const response = await mailboxService.sync(id);
-            alert(response.data.message || "Sync started successfully!");
-            fetchMailboxes();
+            // Get initial email count before sync
+            const statusBefore = await mailboxService.syncStatus(id);
+            const countBefore = statusBefore.data.total_emails;
+
+            // Trigger sync (returns instantly)
+            await mailboxService.sync(id);
+            setSyncMessages(prev => ({ ...prev, [id]: 'Fetching emails...' }));
+
+            // Poll sync_status every 3 seconds until last_synced_at changes
+            const beforeSyncedAt = statusBefore.data.last_synced_at;
+            let attempts = 0;
+            const maxAttempts = 60; // 3 minutes max
+
+            const pollInterval = setInterval(async () => {
+                attempts++;
+                try {
+                    const statusRes = await mailboxService.syncStatus(id);
+                    const { last_synced_at, total_emails, ai_processed } = statusRes.data;
+
+                    if (last_synced_at !== beforeSyncedAt) {
+                        // Phase 1 (fetch) is done
+                        const newCount = total_emails - countBefore;
+                        setSyncMessages(prev => ({
+                            ...prev,
+                            [id]: `✅ ${newCount} new email${newCount !== 1 ? 's' : ''} fetched! (${ai_processed} AI processed)`
+                        }));
+                        clearInterval(pollInterval);
+                        setSyncingIds(prev => {
+                            const next = new Set(prev);
+                            next.delete(id);
+                            return next;
+                        });
+                        fetchMailboxes();
+                        // Clear message after 5 seconds
+                        setTimeout(() => {
+                            setSyncMessages(prev => {
+                                const next = { ...prev };
+                                delete next[id];
+                                return next;
+                            });
+                        }, 5000);
+                    } else {
+                        setSyncMessages(prev => ({ ...prev, [id]: `Syncing... (${attempts * 3}s)` }));
+                    }
+                } catch (pollErr) {
+                    console.error("Polling error", pollErr);
+                }
+
+                if (attempts >= maxAttempts) {
+                    clearInterval(pollInterval);
+                    setSyncingIds(prev => {
+                        const next = new Set(prev);
+                        next.delete(id);
+                        return next;
+                    });
+                    setSyncMessages(prev => ({ ...prev, [id]: '⚠️ Sync is still running in background.' }));
+                    fetchMailboxes();
+                }
+            }, 3000);
         } catch (error) {
             console.error("Sync failed", error);
-            const errMsg = error.response?.data?.details || error.response?.data?.error || "Sync failed. Please check your connection.";
-            alert(errMsg);
+            setSyncingIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+            const errMsg = error.response?.data?.details || error.response?.data?.error || "Sync failed.";
+            setSyncMessages(prev => ({ ...prev, [id]: `❌ ${errMsg}` }));
         }
     };
 
@@ -147,36 +211,49 @@ const MailboxManager = () => {
                     </div>
                 ) : (
                     mailboxes.map((mailbox) => (
-                        <div key={mailbox.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-between transition-all duration-300">
-                            <div className="flex items-center space-x-4">
-                                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full">
-                                    <Mail className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                        <div key={mailbox.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full">
+                                        <Mail className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">{mailbox.email_address}</h3>
+                                        <p className="text-sm text-gray-400 dark:text-gray-500 flex items-center mt-0.5">
+                                            <span className="capitalize">{mailbox.provider}</span>
+                                            <span className="mx-2">•</span>
+                                            {mailbox.last_synced_at ? `${formatDistanceToNow(new Date(mailbox.last_synced_at))} ago` : 'Never synced'}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="min-w-0">
-                                    <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">{mailbox.email_address}</h3>
-                                    <p className="text-sm text-gray-400 dark:text-gray-500 flex items-center mt-0.5">
-                                        <span className="capitalize">{mailbox.provider}</span>
-                                        <span className="mx-2">•</span>
-                                        {mailbox.last_synced_at ? `${formatDistanceToNow(new Date(mailbox.last_synced_at))} ago` : 'Never synced'}
-                                    </p>
+                                <div className="flex items-center space-x-2 flex-shrink-0">
+                                    <button 
+                                      onClick={() => handleSync(mailbox.id)}
+                                      disabled={syncingIds.has(mailbox.id)}
+                                      className={clsx(
+                                          "p-2 rounded-lg transition-colors",
+                                          syncingIds.has(mailbox.id) 
+                                              ? "text-indigo-600 dark:text-indigo-400 cursor-wait" 
+                                              : "text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                                      )}
+                                      title={syncingIds.has(mailbox.id) ? "Syncing..." : "Force Sync"}
+                                    >
+                                      <RefreshCw className={clsx("w-5 h-5", syncingIds.has(mailbox.id) && "animate-spin")} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDelete(mailbox.id)}
+                                      className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                      title="Remove Account"
+                                    >
+                                      <Trash2 className="w-5 h-5" />
+                                    </button>
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-2 flex-shrink-0">
-                                <button 
-                                  onClick={() => handleSync(mailbox.id)}
-                                  className="p-2 text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
-                                  title="Force Sync"
-                                >
-                                  <RefreshCw className="w-5 h-5" />
-                                </button>
-                                <button 
-                                  onClick={() => handleDelete(mailbox.id)}
-                                  className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                  title="Remove Account"
-                                >
-                                  <Trash2 className="w-5 h-5" />
-                                </button>
-                            </div>
+                            {syncMessages[mailbox.id] && (
+                                <div className="mt-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-sm text-indigo-700 dark:text-indigo-300 font-medium">
+                                    {syncMessages[mailbox.id]}
+                                </div>
+                            )}
                         </div>
                     ))
                 )}

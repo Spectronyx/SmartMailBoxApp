@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  timeout: 60000, // Increased to 60s for AI processing
+  timeout: 15000, // 15s default — sync trigger returns instantly now
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,6 +42,7 @@ export const mailboxService = {
   getAll: () => api.get('/mailboxes/'),
   create: (data) => api.post('/mailboxes/', data),
   sync: (id) => api.post(`/mailboxes/${id}/sync_emails/`),
+  syncStatus: (id) => api.get(`/mailboxes/${id}/sync_status/`),
   delete: (id) => api.delete(`/mailboxes/${id}/`),
   getSyncSettings: () => api.get('/mailboxes/sync_settings/'),
   updateSyncSettings: (minutes) => api.post('/mailboxes/sync_settings/', { interval_minutes: minutes }),
