@@ -65,8 +65,18 @@ class GmailService:
                 sync_date = self.mailbox.last_synced_at.strftime("%Y/%m/%d")
                 query += f" after:{sync_date}"
 
-            results = self.service.users().messages().list(userId='me', q=query).execute()
+            results = self.service.users().messages().list(userId='me', q=query, maxResults=100).execute()
             messages = results.get('messages', [])
+
+            # Paginate through all results
+            while 'nextPageToken' in results:
+                results = self.service.users().messages().list(
+                    userId='me', q=query, maxResults=100,
+                    pageToken=results['nextPageToken']
+                ).execute()
+                messages.extend(results.get('messages', []))
+
+            logger.info(f"Gmail: found {len(messages)} messages to process for {self.mailbox.email_address}")
 
             count = 0
             for msg_meta in messages:

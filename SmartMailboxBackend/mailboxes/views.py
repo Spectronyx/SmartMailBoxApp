@@ -134,6 +134,22 @@ class MailboxViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=500)
 
 
+    @action(detail=True, methods=['get'], url_path='sync_status')
+    def sync_status(self, request, pk=None):
+        """
+        GET /api/mailboxes/{id}/sync_status/
+        Returns sync state so the frontend can poll for completion.
+        """
+        from emails.models import Email
+        mailbox = self.get_object()
+        total_emails = Email.objects.filter(mailbox=mailbox).count()
+        ai_processed = Email.objects.filter(mailbox=mailbox, ai_processed=True).count()
+        return Response({
+            'last_synced_at': mailbox.last_synced_at,
+            'total_emails': total_emails,
+            'ai_processed': ai_processed,
+        })
+
     @action(detail=True, methods=['post'], url_path='sync_emails')
     def sync_emails(self, request, pk=None):
         """
