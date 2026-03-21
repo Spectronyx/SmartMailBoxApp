@@ -113,6 +113,27 @@ class MailboxViewSet(viewsets.ModelViewSet):
             logger.exception("Failed to update sync settings")
             return Response({'error': str(e)}, status=500)
 
+    @action(detail=False, methods=['post'], url_path='trigger_sync')
+    def trigger_sync(self, request):
+        """
+        Manually trigger a sync for all active mailboxes.
+        
+        POST /api/mailboxes/trigger_sync/
+        Useful for external cron jobs (e.g. cron-job.org) when Celery Beat is unavailable.
+        """
+        from .tasks import sync_all_mailboxes
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            logger.info("Manual trigger_sync called")
+            result = sync_all_mailboxes()
+            return Response({'message': 'Sync triggered successfully', 'result': result})
+        except Exception as e:
+            logger.exception("Manual trigger_sync failed")
+            return Response({'error': str(e)}, status=500)
+
+
     @action(detail=True, methods=['post'], url_path='sync_emails')
     def sync_emails(self, request, pk=None):
         """

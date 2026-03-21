@@ -30,7 +30,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-p#$7+&*9(y83e2$ar3n)=
 
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1','smartmailboxapp.onrender.com').split(',')
 
 
 # Application definition
@@ -181,6 +181,7 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://smart-mail-box-app.vercel.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -234,6 +235,11 @@ CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# For single-instance deployments (like Render free tier), run tasks synchronously
+# Set this to True in your environment variables if no background worker is available.
+CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False').lower() == 'true'
+CELERY_TASK_EAGER_PROPAGATES = True
 
 # This is important for tasks that use the DB
 CELERY_TASK_TRACK_STARTED = True
