@@ -155,165 +155,28 @@ class MailboxViewSet(viewsets.ModelViewSet):
                 'mode': 'imap' | 'demo'
             }
         """
+        import threading
         import logging
+        from django.db import connection
+        from .tasks import sync_mailbox_task
+
         logger = logging.getLogger(__name__)
         mailbox = self.get_object()
 
-        try:
-            # --- Gmail API path ---
-            if mailbox.provider == 'GMAIL' and hasattr(request.user, 'profile'):
-                profile = request.user.profile
-                if profile.google_access_token:
-                    from .services import GmailService
-                    
-                    logger.info(f"Starting Gmail API sync for {mailbox.email_address}")
-                    service = GmailService(mailbox, profile)
-                    created_count = service.fetch_new_messages()
-                    
-                    mailbox.last_synced_at = timezone.now()
-                    mailbox.save()
-                    
-                    return Response({
-                        'message': f'Gmail API sync complete! {created_count} new emails fetched.',
-                        'emails_created': created_count,
-                        'mailbox': mailbox.email_address,
-                        'mode': 'gmail_api'
-                    })
+        def _background_sync():
+            """Run sync in a background thread to avoid Render's 30s timeout."""
+            try:
+                sync_mailbox_task(mailbox.id)
+            except Exception as e:
+                logger.exception(f"Background sync failed for mailbox {mailbox.id}: {e}")
+            finally:
+                connection.close()
 
-            # --- Real IMAP path ---
-            if mailbox.imap_server and mailbox.password:
-                from .services import IMAPService
+        thread = threading.Thread(target=_background_sync, daemon=True)
+        thread.start()
 
-                logger.info(f"Starting IMAP sync for {mailbox.email_address}")
-                service = IMAPService(mailbox)
-                
-                if not service.connect():
-                    return Response({
-                        'error': 'Connection Failed',
-                        'details': f'Could not connect to {mailbox.imap_server}. Please check your credentials and server settings.'
-                    }, status=400)
-
-                created_count = service.fetch_new_emails()
-
-                mailbox.last_synced_at = timezone.now()
-                mailbox.save()
-
-                return Response({
-                    'message': f'IMAP sync complete! {created_count} new emails fetched.',
-                    'emails_created': created_count,
-                    'mailbox': mailbox.email_address,
-                    'mode': 'imap'
-                })
-
-            # --- Demo fallback path ---
-            logger.info(f"No IMAP credentials for {mailbox.email_address}, using demo data.")
-            from emails.models import Email
-            from datetime import timedelta
-            import random
-
-            sample_emails = [
-                {
-                    'subject': 'URGENT: Project deadline moved to this Friday',
-                    'sender': 'manager@company.com',
-                    'body': (
-                        '<p>Hi team,</p>'
-                        '<p>The client has requested we move the delivery <b>deadline to this Friday</b>.</p>'
-                        '<p>Please prioritize all remaining tasks and submit your work by end of day Thursday.</p>'
-                        '<p>We need to review everything before the final submission. This is critical.</p>'
-                    ),
-                    'attachments': [
-                        {'filename': 'project_brief.pdf', 'content_type': 'application/pdf', 'size': 1024500}
-                    ]
-                },
-                {
-                    'subject': 'Job Opportunity: Senior Developer at Tech Corp',
-                    'sender': 'recruiter@techcorp.com',
-                    'body': (
-                        'We noticed your profile and think you would be a <i>great fit</i> for our <b>Senior Developer</b> role.'
-                        '<br><br>The position offers competitive salary, remote work, and stock options.'
-                        '<br>Would you be interested in scheduling a call this week?'
-                    ),
-                },
-                {
-                    'subject': 'Weekly Newsletter: Tech Giants 2026',
-                    'sender': 'news@techdigest.io',
-                    'body': (
-                        '<div style="color: #333; font-family: sans-serif;">'
-                        '<h1>Tech Weekly</h1>'
-                        '<p>This week we explore the rise of <b>Gemini 3</b> and its impact on the developer ecosystem.</p>'
-                        '<ul><li>LLMs in the browser</li><li>The end of manual inbox management?</li></ul>'
-                        '</div>'
-                    ),
-                    'attachments': [
-                        {'filename': 'weekly_stats.xlsx', 'content_type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'size': 45000}
-                    ]
-                },
-                {
-                    'subject': 'Invoice #4521 - CloudHost IO',
-                    'sender': 'billing@cloudhost.io',
-                    'body': (
-                        'Your monthly hosting invoice is ready. <b>Amount due: $49.99</b>.<br>'
-                        'Payment deadline: February 20, 2026.<br>'
-                        'Please see the attached PDF for details.'
-                    ),
-                    'attachments': [
-                        {'filename': 'invoice_4521.pdf', 'content_type': 'application/pdf', 'size': 85000}
-                    ]
-                }
-            ]
-
-            now = timezone.now()
-            created_count = 0
-
-            for email_data in sample_emails:
-                exists = Email.objects.filter(
-                    mailbox=mailbox,
-                    subject=email_data['subject'],
-                    sender=email_data['sender']
-                ).exists()
-
-                if not exists:
-                    email_obj = Email.objects.create(
-                        mailbox=mailbox,
-                        subject=email_data['subject'],
-                        sender=email_data['sender'],
-                        body=email_data['body'],
-                        received_at=now - timedelta(hours=random.randint(1, 72)),
-                    )
-                    
-                    # Create demo attachments
-                    if 'attachments' in email_data:
-                        from emails.models import Attachment
-                        for att_data in email_data['attachments']:
-                            Attachment.objects.create(
-                                email=email_obj,
-                                filename=att_data['filename'],
-                                content_type=att_data['content_type'],
-                                size=att_data['size']
-                            )
-
-                    # Run auto-pipeline asynchronously for demo visibility
-                    from emails.tasks import process_email_pipeline
-                    process_email_pipeline.delay(email_obj.id)
-                    
-                    created_count += 1
-
-            mailbox.last_synced_at = now
-            mailbox.save()
-
-            return Response({
-                'message': (
-                    f'Demo sync complete! {created_count} sample emails loaded. '
-                    'Configure IMAP credentials for real email sync.'
-                ),
-                'emails_created': created_count,
-                'mailbox': mailbox.email_address,
-                'mode': 'demo'
-            })
-
-        except Exception as e:
-            logger.exception(f"Error syncing mailbox {mailbox.id}")
-            return Response({
-                'error': 'Sync failed',
-                'details': str(e)
-            }, status=500)
+        return Response({
+            'message': f'Sync started for {mailbox.email_address}. Refresh in a few seconds.',
+            'mailbox': mailbox.email_address,
+            'status': 'syncing'
+        })

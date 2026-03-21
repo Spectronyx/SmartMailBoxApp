@@ -24,7 +24,13 @@ A Django REST API powering the Smart Mailbox ecosystem with AI-driven categoriza
 - `GET /api/tasks/export-calendar/` - Download all tasks as a calendar.
 - `POST /api/tasks/run-reminders/` - Manual reminder check.
 
-## 🏗️ Setup & Development
+## 🚀 Deployment
+
+For production setup on platforms like **Render** or **Vercel**, refer to the unified [DEPLOYMENT.md](../DEPLOYMENT.md) in the project root.
+
+---
+
+## 🛠️ Setup & Development (Local)
 
 ```bash
 # Activation

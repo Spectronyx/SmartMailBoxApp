@@ -65,7 +65,7 @@ class GmailService:
                 sync_date = self.mailbox.last_synced_at.strftime("%Y/%m/%d")
                 query += f" after:{sync_date}"
 
-            results = self.service.users().messages().list(userId='me', q=query).execute()
+            results = self.service.users().messages().list(userId='me', q=query, maxResults=5).execute()
             messages = results.get('messages', [])
 
             count = 0
