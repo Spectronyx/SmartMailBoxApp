@@ -72,15 +72,19 @@ class IMAPService:
         try:
             self.mail.select('INBOX')
             
-            # Search criteria: UNSEEN
-            # Future improvement: search SINCE last_synced_at
-            status, messages = self.mail.search(None, 'UNSEEN')
+            # First sync: fetch ALL emails (full history)
+            # Subsequent syncs: fetch emails since last sync date
+            if self.mailbox.last_synced_at:
+                since_date = self.mailbox.last_synced_at.strftime("%d-%b-%Y")
+                status, messages = self.mail.search(None, f'(SINCE {since_date})')
+            else:
+                status, messages = self.mail.search(None, 'ALL')
             
             if status != 'OK':
                 return 0
             
             new_email_ids = messages[0].split()
-            logger.info(f"Found {len(new_email_ids)} unseen emails for {self.mailbox.email_address}")
+            logger.info(f"Found {len(new_email_ids)} emails for {self.mailbox.email_address}")
             
             created_count = 0
             for msg_id in new_email_ids:

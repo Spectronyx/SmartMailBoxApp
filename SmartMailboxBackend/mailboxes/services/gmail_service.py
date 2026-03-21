@@ -57,13 +57,13 @@ class GmailService:
             return 0
 
         try:
-            # Search for messages since last_synced_at or just unread ones
-            # Query format: "is:unread" or "after:YYYY/MM/DD"
-            query = "is:unread"
+            # First sync: fetch ALL emails in inbox (full history)
+            # Subsequent syncs: fetch all emails after last sync date (read + unread)
             if self.mailbox.last_synced_at:
-                # Gmail query date format is YYYY/MM/DD
                 sync_date = self.mailbox.last_synced_at.strftime("%Y/%m/%d")
-                query += f" after:{sync_date}"
+                query = f"after:{sync_date}"
+            else:
+                query = "in:inbox"
 
             results = self.service.users().messages().list(userId='me', q=query, maxResults=100).execute()
             messages = results.get('messages', [])
