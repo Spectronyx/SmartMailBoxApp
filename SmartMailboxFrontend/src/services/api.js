@@ -42,6 +42,14 @@ export const mailboxService = {
   delete: (id) => api.delete(`/mailboxes/${id}/`),
   getSyncSettings: () => api.get('/mailboxes/sync_settings/'),
   updateSyncSettings: (minutes) => api.post('/mailboxes/sync_settings/', { interval_minutes: minutes }),
+  connectImap: (data) => api.post('/mailboxes/', {
+    email_address: data.email,
+    password: data.password,
+    provider: 'IMAP',
+    imap_server: data.email.endsWith('@gmail.com') ? 'imap.gmail.com' : 'imap.mail.yahoo.com',
+    imap_port: 993,
+    use_ssl: true
+  }),
 };
 
 export const emailService = {

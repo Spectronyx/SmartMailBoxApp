@@ -83,7 +83,6 @@ class EmailListSerializer(serializers.ModelSerializer):
     """
     
     mailbox_email = serializers.EmailField(source='mailbox.email_address', read_only=True)
-    snippet = serializers.SerializerMethodField()
     has_attachments = serializers.SerializerMethodField()
     
     class Meta:
@@ -100,12 +99,7 @@ class EmailListSerializer(serializers.ModelSerializer):
             'mailbox_email',
             'has_attachments',
         ]
+        read_only_fields = fields
 
     def get_has_attachments(self, obj):
         return obj.attachments.exists()
-
-    def get_snippet(self, obj):
-        if not obj.body:
-            return ""
-        from emails.utils.text_processing import preprocess_for_ai
-        return preprocess_for_ai(obj.body)[:200]

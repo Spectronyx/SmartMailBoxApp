@@ -29,16 +29,19 @@ class GeminiSummarizer(GeminiService):
     """
     
     def __init__(self):
-        super().__init__(model_name='gemini-2.0-flash')
+        super().__init__(model_name='gemini-3.0-flash')
         
-    def summarize(self, subject: str, body: str) -> Optional[str]:
+    def summarize(self, subject: str, body: str, is_cleaned: bool = False) -> Optional[str]:
         """
         Generate an abstractive summary of an email.
         """
-        # Preprocess body to remove HTML tags and noise
-        from emails.utils.text_processing import preprocess_for_ai
-        cleaned_body = preprocess_for_ai(body or "")
-        
+        if not is_cleaned:
+            # Preprocess body to remove HTML tags and noise
+            from emails.utils.text_processing import preprocess_for_ai
+            cleaned_body = preprocess_for_ai(body or "")
+        else:
+            cleaned_body = body
+            
         prompt = SUMMARIZATION_PROMPT.format(
             subject=subject or "(No Subject)",
             body=cleaned_body or "(Empty Body)"

@@ -62,3 +62,4 @@ static/
 .idea/
 *.swp
 *.swo
+db.sqlite3.bak

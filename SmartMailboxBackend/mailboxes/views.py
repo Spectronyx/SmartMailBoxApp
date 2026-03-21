@@ -165,6 +165,13 @@ class MailboxViewSet(viewsets.ModelViewSet):
 
                 logger.info(f"Starting IMAP sync for {mailbox.email_address}")
                 service = IMAPService(mailbox)
+                
+                if not service.connect():
+                    return Response({
+                        'error': 'Connection Failed',
+                        'details': f'Could not connect to {mailbox.imap_server}. Please check your credentials and server settings.'
+                    }, status=400)
+
                 created_count = service.fetch_new_emails()
 
                 mailbox.last_synced_at = timezone.now()

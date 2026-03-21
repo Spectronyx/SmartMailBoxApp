@@ -55,7 +55,7 @@ class SummarizerPipeline:
             # 2. Try Gemini first (Abstractive)
             # Pass original body to gemini_summarizer (which does its own cleaning or might want full context)
             # Actually, better to pass cleaned body to ensure no CSS leakage.
-            summary = self.gemini_summarizer.summarize(email_subject, cleaned_body)
+            summary = self.gemini_summarizer.summarize(email_subject, cleaned_body, is_cleaned=True)
             
             # 3. Fallback to Frequency (Extractive)
             if not summary:

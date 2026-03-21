@@ -49,6 +49,11 @@ def run_full_pipeline(email):
         logger.error(f"Auto-pipeline summarization failed: {e}")
 
     # 3. Task Extraction
+    # Only run for non-JUNK emails as per user request
+    if email.category == 'JUNK':
+        logger.info(f"Skipping task extraction for JUNK email {email.id}")
+        return
+
     try:
         extractor = get_extraction_pipeline()
         extraction_result = extractor.process(
@@ -57,7 +62,7 @@ def run_full_pipeline(email):
             email_summary=email.summary
         )
         
-        if extraction_result['should_create_task']:
+        if extraction_result and extraction_result.get('should_create_task'):
             Task.objects.create(
                 email=email,
                 action_text=extraction_result['action_text'],

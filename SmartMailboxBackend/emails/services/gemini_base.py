@@ -12,7 +12,7 @@ class GeminiService:
     Migrated to use the unified google-genai SDK.
     """
     
-    def __init__(self, model_name: str = 'gemini-2.0-flash'):
+    def __init__(self, model_name: str = 'gemini-3.0-flash'):
         self.model_name = model_name
         self._client = None
         self._is_configured = False

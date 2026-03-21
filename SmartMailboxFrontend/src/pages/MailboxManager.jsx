@@ -80,11 +80,13 @@ const MailboxManager = () => {
 
     const handleSync = async (id) => {
         try {
-            await mailboxService.sync(id);
-            alert("Sync started successfully!");
+            const response = await mailboxService.sync(id);
+            alert(response.data.message || "Sync started successfully!");
             fetchMailboxes();
         } catch (error) {
             console.error("Sync failed", error);
+            const errMsg = error.response?.data?.details || error.response?.data?.error || "Sync failed. Please check your connection.";
+            alert(errMsg);
         }
     };
 

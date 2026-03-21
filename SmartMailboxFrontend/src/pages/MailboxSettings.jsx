@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { endpoints } from '../services/api';
+import { mailboxService } from '../services/api';
 
 const MailboxSettings = () => {
   const [mailboxes, setMailboxes] = useState([]);
 
   useEffect(() => {
-    // Assumes you have an endpoint like GET /mailboxes/
-    // You might need to add this to your services/api.js
-    endpoints.fetchMailboxes().then(res => setMailboxes(res.data));
+    mailboxService.getAll().then(res => setMailboxes(res.data.results || []));
   }, []);
 
   return (

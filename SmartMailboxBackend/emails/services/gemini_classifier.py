@@ -30,7 +30,7 @@ class GeminiClassifier(GeminiService):
     VALID_CATEGORIES = {'CRITICAL', 'OPPORTUNITY', 'INFO', 'JUNK'}
     
     def __init__(self):
-        # Migrated from gemini-2.0-flash to gemini-3-flash-preview
+        # Migrated from gemini-3.0-flash to gemini-3-flash-preview
         super().__init__(model_name='gemini-3-flash-preview')
     
     def classify(self, sender: str, subject: str, body: str) -> Optional[Dict]:

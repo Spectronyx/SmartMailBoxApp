@@ -12,13 +12,20 @@ from ..gemini_base import GeminiService
 
 logger = logging.getLogger(__name__)
 
-EXTRACTION_PROMPT = """You are an email productivity assistant. Extract actionable tasks and deadlines from the following email.
+EXTRACTION_PROMPT = """You are a highly efficient personal assistant. Your goal is to identify ONLY clear, actionable tasks that the recipient of this email needs to perform.
 
-Respond with ONLY a JSON object in this format:
+STRICT GUIDELINES:
+1. Actionable Tasks Only: Only extract if there is something the user MUST DO (e.g., reply, sign, pay, attend, review).
+2. Skip Informative Content: Do NOT extract tasks for newsletters, general updates, or informative receipts unless there's a specific follow-up required.
+3. Specificity: The 'action_text' MUST be specific and professional (e.g., "Submit Project X report by EOD" instead of "Submit report").
+4. Priority: If multiple tasks exist, extract the single most important one.
+5. No Junk: If the email is clearly marketing or spam, set 'should_create_task' to false.
+
+Respond with ONLY a JSON object:
 {{
-    "action_text": "Brief plain-text description (no HTML tags) of what needs to be done",
-    "deadline": "ISO format date string (YYYY-MM-DDTHH:MM:SSZ) or null if none found",
-    "should_create_task": true/false (true only if there is a clear actionable item)
+    "action_text": "Specific, concise action (plain text)",
+    "deadline": "ISO format date (YYYY-MM-DDTHH:MM:SSZ) or null",
+    "should_create_task": true/false
 }}
 
 Context:

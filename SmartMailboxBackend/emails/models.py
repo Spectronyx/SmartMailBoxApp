@@ -53,6 +53,12 @@ class Email(models.Model):
         blank=True,
         help_text="AI-generated summary of the email content"
     )
+    snippet = models.CharField(
+        max_length=500,
+        null=True,
+        blank=True,
+        help_text="Plain text snippet for list views"
+    )
     extracted_deadline = models.DateTimeField(
         null=True,
         blank=True,
@@ -86,11 +92,19 @@ class Email(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Always ensure summary is plain text without HTML tags before saving.
+        Always ensure summary is plain text without HTML tags and populate snippet.
         """
         from emails.utils.text_processing import preprocess_for_ai
+        
+        # Populate snippet if missing or body changed
+        if self.body and (not self.snippet or 'body' in kwargs.get('update_fields', [])):
+            self.snippet = preprocess_for_ai(self.body)[:500]
+
         if self.summary:
+            # Summary should already be fairly clean if from Gemini, 
+            # but this is a safety check.
             self.summary = preprocess_for_ai(self.summary)
+            
         super().save(*args, **kwargs)
 
 
