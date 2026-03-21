@@ -73,6 +73,12 @@ class Email(models.Model):
         help_text="The mailbox this email belongs to"
     )
     
+    # AI processing status
+    ai_processed = models.BooleanField(
+        default=False,
+        help_text="Whether this email has been processed by the AI pipeline"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -85,6 +91,7 @@ class Email(models.Model):
             models.Index(fields=['-received_at']),
             models.Index(fields=['mailbox', '-received_at']),
             models.Index(fields=['category']),
+            models.Index(fields=['mailbox', 'ai_processed', '-received_at']),
         ]
     
     def __str__(self):

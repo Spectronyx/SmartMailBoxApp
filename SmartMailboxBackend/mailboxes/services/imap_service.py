@@ -97,10 +97,9 @@ class IMAPService:
     
     def _process_message(self, msg_id) -> bool:
         """
-        Fetch, parse and save a single message.
+        Fetch, parse and save a single message (no AI pipeline here).
         """
         from emails.models import Email
-        from emails.services.pipeline_runner import run_full_pipeline
         try:
             status, data = self.mail.fetch(msg_id, '(RFC822)')
             if status != 'OK':
@@ -140,10 +139,6 @@ class IMAPService:
                 
                 # Extract and save attachments
                 self._save_attachments(msg, email_obj)
-                
-                # Run the auto-pipeline asynchronously (Classification, Summarization, Tasks)
-                from emails.tasks import process_email_pipeline
-                process_email_pipeline.delay(email_obj.id)
                 return True
             
             return False

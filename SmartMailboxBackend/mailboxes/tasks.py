@@ -10,27 +10,30 @@ logger = logging.getLogger(__name__)
 @shared_task(name="mailboxes.sync_mailbox_task")
 def sync_mailbox_task(mailbox_id):
     """
-    Asynchronous task to sync a single mailbox.
+    Two-phase sync task:
+      Phase 1 — Fetch ALL new emails from Gmail/IMAP/demo and save to DB.
+      Phase 2 — Run AI pipeline on the latest 100 unprocessed emails only.
     """
     try:
         mailbox = Mailbox.objects.get(id=mailbox_id)
-        logger.info(f"Starting async sync for mailbox {mailbox.email_address}")
+        logger.info(f"[Phase 1] Starting email fetch for mailbox {mailbox.email_address}")
         
         created_count = 0
         mode = "demo"
 
+        # ── Phase 1: Fetch ALL emails ──────────────────────────────────
         # 1. Try Gmail API if configured
         if mailbox.provider == 'GMAIL' and mailbox.user and hasattr(mailbox.user, 'profile'):
             profile = mailbox.user.profile
             if profile.google_access_token:
-                logger.debug(f"Async sync: Gmail API for {mailbox.email_address}")
+                logger.debug(f"Phase 1: Gmail API for {mailbox.email_address}")
                 service = GmailService(mailbox, profile)
                 created_count = service.fetch_new_messages()
                 mode = "gmail_api"
         
         # 2. Try IMAP if configured
         elif mailbox.imap_server and mailbox.password:
-            logger.debug(f"Async sync: IMAP for {mailbox.email_address}")
+            logger.debug(f"Phase 1: IMAP for {mailbox.email_address}")
             service = IMAPService(mailbox)
             created_count = service.fetch_new_emails()
             mode = "imap"
@@ -81,12 +84,6 @@ def sync_mailbox_task(mailbox_id):
                     if 'attachments' in email_data:
                         for att in email_data['attachments']:
                             Attachment.objects.create(email=email_obj, filename=att['filename'], content_type=att['content_type'], size=att['size'])
-                    # Run AI pipeline
-                    try:
-                        from emails.tasks import process_email_pipeline
-                        process_email_pipeline(email_obj.id)
-                    except Exception as pipeline_err:
-                        logger.warning(f"Pipeline failed for email {email_obj.id}: {pipeline_err}")
                     created_count += 1
             mode = "demo"
         
@@ -94,8 +91,33 @@ def sync_mailbox_task(mailbox_id):
         mailbox.last_synced_at = timezone.now()
         mailbox.save()
         
-        logger.info(f"Async sync complete for {mailbox.email_address}: {created_count} new emails ({mode}).")
-        return {'status': 'success', 'created_count': created_count, 'mode': mode}
+        logger.info(f"[Phase 1] Fetch complete for {mailbox.email_address}: {created_count} new emails ({mode}).")
+
+        # ── Phase 2: AI-process the latest 100 unprocessed emails ──────
+        from emails.models import Email
+        from emails.tasks import process_email_pipeline
+
+        unprocessed = Email.objects.filter(
+            mailbox=mailbox,
+            ai_processed=False
+        ).order_by('-received_at')[:100]
+
+        process_count = 0
+        for email_obj in unprocessed:
+            try:
+                process_email_pipeline(email_obj.id)
+                process_count += 1
+            except Exception as pipeline_err:
+                logger.warning(f"Pipeline failed for email {email_obj.id}: {pipeline_err}")
+
+        logger.info(f"[Phase 2] AI processed {process_count} emails for {mailbox.email_address}.")
+        
+        return {
+            'status': 'success',
+            'fetched': created_count,
+            'ai_processed': process_count,
+            'mode': mode
+        }
         
     except Mailbox.DoesNotExist:
         logger.error(f"Async sync failed: Mailbox {mailbox_id} not found.")

@@ -65,7 +65,7 @@ class GmailService:
                 sync_date = self.mailbox.last_synced_at.strftime("%Y/%m/%d")
                 query += f" after:{sync_date}"
 
-            results = self.service.users().messages().list(userId='me', q=query, maxResults=5).execute()
+            results = self.service.users().messages().list(userId='me', q=query).execute()
             messages = results.get('messages', [])
 
             count = 0
@@ -80,9 +80,8 @@ class GmailService:
             return 0
 
     def _process_message(self, msg_id) -> bool:
-        """Fetch full message content, parse and save to Email model."""
+        """Fetch full message content, parse and save to Email model (no AI pipeline here)."""
         from emails.models import Email
-        from emails.services.pipeline_runner import run_full_pipeline
 
         try:
             msg_data = self.service.users().messages().get(userId='me', id=msg_id, format='raw').execute()
@@ -169,10 +168,6 @@ class GmailService:
 
                 # Save attachments
                 self._save_attachments(msg, email_obj)
-                
-                # Run the auto-pipeline asynchronously (Classification, Summarization, Tasks)
-                from emails.tasks import process_email_pipeline
-                process_email_pipeline.delay(email_obj.id)
                 return True
             
             return False

@@ -15,6 +15,9 @@ def process_email_pipeline(email_id):
         email = Email.objects.get(id=email_id)
         logger.info(f"Processing background pipeline for email {email_id}")
         run_full_pipeline(email)
+        # Mark as AI-processed so it won't be reprocessed
+        email.ai_processed = True
+        email.save(update_fields=['ai_processed'])
         return f"Successfully processed email {email_id}"
     except Email.DoesNotExist:
         logger.error(f"Email {email_id} not found for background pipeline")
