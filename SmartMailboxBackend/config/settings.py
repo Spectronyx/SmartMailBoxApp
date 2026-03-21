@@ -181,7 +181,7 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://smart-mail-box-app.vercel.app",
+    "https://smart-mail-box-app.vercel.app"
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -200,7 +200,7 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
 GOOGLE_OAUTH_REDIRECT_URI = os.environ.get(
-    'GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/api/auth/google/callback/'
+    'GOOGLE_OAUTH_REDIRECT_URI', 'https://smart-mail-box-app.vercel.app/api/auth/google/callback/'
 )
 
 # ============================================================
