@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { clsx } from 'clsx';
 import { format, isToday, isThisYear } from 'date-fns';
-import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { emailService, mailboxService } from '../services/api';
 import { 
   Search, 
@@ -12,14 +12,17 @@ import {
   Clock, 
   Trash2, 
   Info, 
-  X, 
   Paperclip, 
   Star,
   Archive,
   CheckSquare,
   MoreVertical,
   Check,
-  Mail
+  Mail,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -31,7 +34,16 @@ const Inbox = () => {
     const [lastSynced, setLastSynced] = useState(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const [selectedEmails, setSelectedEmails] = useState(new Set());
+    const pollRef = useRef(null);
     
+    // Pagination State
+    const [totalCount, setTotalCount] = useState(0);
+    const [nextPageUrl, setNextPageUrl] = useState(null);
+    const [prevPageUrl, setPrevPageUrl] = useState(null);
+    const currentPage = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = 20; // matches backend PAGE_SIZE
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
     // UI State
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
@@ -40,7 +52,6 @@ const Inbox = () => {
     const currentCategory = searchParams.get('category') || 'ALL';
     const hasAttachments = searchParams.get('has_attachments') === 'true';
     const dateAfter = searchParams.get('received_at_after') || '';
-    const dateBefore = searchParams.get('received_at_before') || '';
 
     const fetchEmails = async (showLoading = true) => {
         try {
@@ -53,7 +64,11 @@ const Inbox = () => {
                 mailboxService.getAll()
             ]);
             
-            setEmails(emailRes.data.results);
+            const data = emailRes.data;
+            setEmails(data.results || []);
+            setTotalCount(data.count || 0);
+            setNextPageUrl(data.next);
+            setPrevPageUrl(data.previous);
             
             const syncTimes = (mailboxRes.data.results || [])
                 .map(mb => mb.last_synced_at)
@@ -72,20 +87,34 @@ const Inbox = () => {
 
     useEffect(() => {
         fetchEmails();
-        const interval = setInterval(() => fetchEmails(false), 30000);
-        return () => clearInterval(interval);
+        pollRef.current = setInterval(() => fetchEmails(false), 30000);
+        return () => clearInterval(pollRef.current);
     }, [searchParams]);
 
     const handleSearch = (e) => {
         e.preventDefault();
-        updateParam('search', searchQuery);
+        const newParams = new URLSearchParams(searchParams);
+        if (searchQuery) newParams.set('search', searchQuery);
+        else newParams.delete('search');
+        newParams.delete('page'); // Reset to page 1 on search
+        setSearchParams(newParams);
     };
 
     const updateParam = (key, value) => {
         const newParams = new URLSearchParams(searchParams);
         if (value) newParams.set(key, value);
         else newParams.delete(key);
+        newParams.delete('page'); // Reset to page 1 on filter change
         setSearchParams(newParams);
+    };
+
+    const goToPage = (page) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (page <= 1) newParams.delete('page');
+        else newParams.set('page', String(page));
+        setSearchParams(newParams);
+        // Scroll to top of email list
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const toggleSelectAll = () => {
@@ -107,7 +136,6 @@ const Inbox = () => {
     const handleRunAI = async () => {
         try {
             setProcessing(true);
-            // We run them sequentially for better reliability
             await emailService.classifyAll();
             await emailService.summarizeAll();
             await emailService.extractTasks();
@@ -126,6 +154,10 @@ const Inbox = () => {
         { id: 'INFO', label: 'Updates', icon: Info, color: 'text-blue-500' },
         { id: 'JUNK', label: 'Spam', icon: Trash2, color: 'text-gray-400' },
     ];
+
+    // Calculate which emails we're showing
+    const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const endItem = Math.min(currentPage * pageSize, totalCount);
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-950 transition-colors duration-300 -m-4 md:-m-8">
@@ -227,15 +259,54 @@ const Inbox = () => {
                         </button>
                         <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-gray-500"><RefreshCw className="w-4.5 h-4.5" /></button>
                         <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-gray-500"><MoreVertical className="w-4.5 h-4.5" /></button>
+                        
+                        {/* Page info + nav (inline like Gmail) */}
+                        {totalCount > 0 && (
+                            <div className="hidden sm:flex items-center ml-4 text-xs text-gray-500 space-x-1">
+                                <span className="font-medium">{startItem}–{endItem}</span>
+                                <span>of</span>
+                                <span className="font-medium">{totalCount}</span>
+                                <div className="flex items-center ml-2">
+                                    <button
+                                        onClick={() => goToPage(1)}
+                                        disabled={currentPage <= 1}
+                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <ChevronsLeft className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => goToPage(currentPage - 1)}
+                                        disabled={!prevPageUrl}
+                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => goToPage(currentPage + 1)}
+                                        disabled={!nextPageUrl}
+                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => goToPage(totalPages)}
+                                        disabled={currentPage >= totalPages}
+                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <ChevronsRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center space-x-1 overflow-x-auto">
                         {categories.map(cat => (
                             <button
                                 key={cat.id}
                                 onClick={() => updateParam('category', cat.id === 'ALL' ? '' : cat.id)}
                                 className={clsx(
-                                    "px-4 py-2.5 rounded-t-lg border-b-2 text-xs font-bold uppercase tracking-wider transition-all",
+                                    "px-4 py-2.5 rounded-t-lg border-b-2 text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
                                     currentCategory === cat.id
                                         ? "border-indigo-600 text-indigo-600 bg-indigo-50/30 dark:bg-indigo-900/10"
                                         : "border-transparent text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-900"
@@ -251,7 +322,7 @@ const Inbox = () => {
                 </div>
             </div>
 
-            {/* Email List - Dense Gmail Style */}
+            {/* Email List */}
             <div className="flex-1 overflow-y-auto bg-white dark:bg-transparent">
                 <div className="max-w-5xl mx-auto">
                     {loading ? (
@@ -310,11 +381,23 @@ const Inbox = () => {
                                         <span className="text-gray-400 dark:text-gray-500 text-xs truncate ml-2">
                                             — {email.summary || email.snippet || "No content"}
                                         </span>
-                                        {/* Attachment Icon */}
                                         {email.has_attachments && (
                                             <Paperclip className="w-3 h-3 text-gray-400 ml-2 flex-shrink-0" />
                                         )}
                                     </div>
+
+                                    {/* Category Badge */}
+                                    {email.category && email.category !== 'UNKNOWN' && (
+                                        <span className={clsx(
+                                            "hidden md:inline-block text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full mr-3 flex-shrink-0",
+                                            email.category === 'CRITICAL' && "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+                                            email.category === 'OPPORTUNITY' && "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
+                                            email.category === 'INFO' && "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
+                                            email.category === 'JUNK' && "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+                                        )}>
+                                            {email.category}
+                                        </span>
+                                    )}
 
                                     {/* Date */}
                                     <div className={clsx(
@@ -337,6 +420,81 @@ const Inbox = () => {
                     )}
                 </div>
             </div>
+
+            {/* Bottom Pagination Bar */}
+            {totalCount > pageSize && (
+                <div className="bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 px-4 md:px-8 py-3">
+                    <div className="max-w-5xl mx-auto flex items-center justify-between">
+                        <p className="text-xs text-gray-500">
+                            Showing <span className="font-bold">{startItem}–{endItem}</span> of <span className="font-bold">{totalCount}</span> emails
+                        </p>
+                        <div className="flex items-center space-x-1">
+                            <button
+                                onClick={() => goToPage(1)}
+                                disabled={currentPage <= 1}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-400"
+                                title="First page"
+                            >
+                                <ChevronsLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => goToPage(currentPage - 1)}
+                                disabled={!prevPageUrl}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-400"
+                                title="Previous page"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+
+                            {/* Page numbers */}
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                } else if (currentPage <= 3) {
+                                    pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                } else {
+                                    pageNum = currentPage - 2 + i;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => goToPage(pageNum)}
+                                        className={clsx(
+                                            "w-8 h-8 rounded-lg text-xs font-bold transition-all",
+                                            currentPage === pageNum
+                                                ? "bg-indigo-600 text-white shadow-md"
+                                                : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
+                                        )}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+
+                            <button
+                                onClick={() => goToPage(currentPage + 1)}
+                                disabled={!nextPageUrl}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-400"
+                                title="Next page"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => goToPage(totalPages)}
+                                disabled={currentPage >= totalPages}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-400"
+                                title="Last page"
+                            >
+                                <ChevronsRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Sync Status Footer */}
             {lastSynced && (
                 <div className="bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 p-2 px-8 flex justify-end">

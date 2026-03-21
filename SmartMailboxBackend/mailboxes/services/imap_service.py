@@ -56,7 +56,7 @@ class IMAPService:
         if self.mail:
             try:
                 self.mail.logout()
-            except:
+            except Exception:
                 pass
     
     def fetch_new_emails(self) -> int:
@@ -112,40 +112,41 @@ class IMAPService:
             raw_email = data[0][1]
             msg = email.message_from_bytes(raw_email)
             
-            # Extract Subject
+            # Extract headers
             subject = self._decode_header(msg.get("Subject", "(No Subject)"))
-            
-            # Extract Sender
             sender = self._decode_header(msg.get("From", ""))
+            email_message_id = (msg.get("Message-ID") or "").strip()
             
-            # Extract Date
+            # Parse date
             date_str = msg.get("Date")
-            received_at = email.utils.parsedate_to_datetime(date_str) if date_str else django_timezone.now()
+            try:
+                received_at = email.utils.parsedate_to_datetime(date_str) if date_str else django_timezone.now()
+            except Exception:
+                received_at = django_timezone.now()
             
             # Extract Body
             body = self._get_email_body(msg)
             
-            # Avoid duplicates based on basic fields if message-id is not available or handled
-            # In a real app, we'd use UID or Message-ID
-            if not Email.objects.filter(
+            # Dedup: use Message-ID if available, else fall back to subject+sender+date
+            if email_message_id:
+                if Email.objects.filter(mailbox=self.mailbox, message_id=email_message_id).exists():
+                    return False
+            else:
+                if Email.objects.filter(mailbox=self.mailbox, subject=subject, sender=sender, received_at=received_at).exists():
+                    return False
+
+            email_obj = Email.objects.create(
                 mailbox=self.mailbox,
+                message_id=email_message_id or None,
                 subject=subject,
                 sender=sender,
+                body=body,
                 received_at=received_at
-            ).exists():
-                email_obj = Email.objects.create(
-                    mailbox=self.mailbox,
-                    subject=subject,
-                    sender=sender,
-                    body=body,
-                    received_at=received_at
-                )
-                
-                # Extract and save attachments
-                self._save_attachments(msg, email_obj)
-                return True
+            )
             
-            return False
+            # Extract and save attachments
+            self._save_attachments(msg, email_obj)
+            return True
             
         except Exception as e:
             logger.error(f"Error processing message {msg_id}: {e}")
@@ -174,18 +175,18 @@ class IMAPService:
                 if content_type == "text/html":
                     try:
                         body_html = part.get_payload(decode=True).decode()
-                    except:
+                    except Exception:
                         body_html = part.get_payload(decode=True).decode('iso-8859-1', errors='replace')
                 elif content_type == "text/plain" and not body_html:
                     try:
                         body_plain = part.get_payload(decode=True).decode()
-                    except:
+                    except Exception:
                         body_plain = part.get_payload(decode=True).decode('iso-8859-1', errors='replace')
         else:
             content_type = msg.get_content_type()
             try:
                 payload = msg.get_payload(decode=True).decode()
-            except:
+            except Exception:
                 payload = msg.get_payload(decode=True).decode('iso-8859-1', errors='replace')
                 
             if content_type == "text/html":
@@ -235,8 +236,6 @@ class IMAPService:
     def _save_attachments(self, msg, email_obj):
         """Extract and save metadata for each attachment in the message."""
         from emails.models import Attachment
-        import logging
-        logger = logging.getLogger(__name__)
 
         if not msg.is_multipart():
             return

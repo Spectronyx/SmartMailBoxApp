@@ -89,7 +89,7 @@ def sync_mailbox_task(mailbox_id):
         
         # Update last_synced_at
         mailbox.last_synced_at = timezone.now()
-        mailbox.save()
+        mailbox.save(update_fields=['last_synced_at'])
         
         logger.info(f"[Phase 1] Fetch complete for {mailbox.email_address}: {created_count} new emails ({mode}).")
 
@@ -128,10 +128,10 @@ def sync_mailbox_task(mailbox_id):
 
 @shared_task(name="mailboxes.sync_all_mailboxes")
 def sync_all_mailboxes():
-    # ... (existing code follows)
     """
     Periodic task to sync all active mailboxes.
-    Called by Celery Beat.
+    Reuses sync_mailbox_task for each mailbox so periodic syncs
+    also get the two-phase behavior (fetch + AI processing).
     """
     logger.info("Starting periodic sync for all active mailboxes")
     active_mailboxes = Mailbox.objects.filter(is_active=True)
@@ -139,27 +139,10 @@ def sync_all_mailboxes():
     sync_results = []
     for mailbox in active_mailboxes:
         try:
-            created_count = 0
-            # 1. Try Gmail API if configured
-            if mailbox.provider == 'GMAIL' and mailbox.user and hasattr(mailbox.user, 'profile'):
-                profile = mailbox.user.profile
-                if profile.google_access_token:
-                    logger.debug(f"Syncing Gmail API for {mailbox.email_address}")
-                    service = GmailService(mailbox, profile)
-                    created_count = service.fetch_new_messages()
-            
-            # 2. Try IMAP if configured
-            elif mailbox.imap_server and mailbox.password:
-                logger.debug(f"Syncing IMAP for {mailbox.email_address}")
-                service = IMAPService(mailbox)
-                created_count = service.fetch_new_emails()
-            
-            # Update last_synced_at
-            mailbox.last_synced_at = timezone.now()
-            mailbox.save()
-            
-            sync_results.append(f"{mailbox.email_address}: {created_count} new")
-            
+            result = sync_mailbox_task(mailbox.id)
+            fetched = result.get('fetched', 0) if isinstance(result, dict) else 0
+            ai_done = result.get('ai_processed', 0) if isinstance(result, dict) else 0
+            sync_results.append(f"{mailbox.email_address}: {fetched} fetched, {ai_done} AI processed")
         except Exception as e:
             logger.error(f"Failed to sync mailbox {mailbox.email_address}: {e}")
             sync_results.append(f"{mailbox.email_address}: FAILED")

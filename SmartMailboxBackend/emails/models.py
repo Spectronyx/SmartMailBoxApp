@@ -72,6 +72,12 @@ class Email(models.Model):
         related_name='emails',
         help_text="The mailbox this email belongs to"
     )
+    message_id = models.CharField(
+        max_length=500,
+        null=True,
+        blank=True,
+        help_text="RFC 2822 Message-ID header for deduplication"
+    )
     
     # AI processing status
     ai_processed = models.BooleanField(
@@ -92,6 +98,14 @@ class Email(models.Model):
             models.Index(fields=['mailbox', '-received_at']),
             models.Index(fields=['category']),
             models.Index(fields=['mailbox', 'ai_processed', '-received_at']),
+            models.Index(fields=['mailbox', 'message_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['mailbox', 'message_id'],
+                name='unique_message_per_mailbox',
+                condition=models.Q(message_id__isnull=False),
+            ),
         ]
     
     def __str__(self):

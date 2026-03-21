@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Plus, RefreshCw, Trash2, Mail } from 'lucide-react';
 import { mailboxService } from '../services/api';
 import { authService } from '../services/auth';
@@ -14,6 +14,7 @@ const MailboxManager = () => {
     const [updatingInterval, setUpdatingInterval] = useState(false);
     const [syncingIds, setSyncingIds] = useState(new Set());
     const [syncMessages, setSyncMessages] = useState({});
+    const pollIntervalsRef = useRef({});
 
     const fetchMailboxes = async () => {
         try {
@@ -142,6 +143,7 @@ const MailboxManager = () => {
                     fetchMailboxes();
                 }
             }, 3000);
+            pollIntervalsRef.current[id] = pollInterval;
         } catch (error) {
             console.error("Sync failed", error);
             setSyncingIds(prev => {
@@ -156,6 +158,10 @@ const MailboxManager = () => {
 
     useEffect(() => {
         fetchMailboxes();
+        return () => {
+            // Clear any active polling intervals on unmount
+            Object.values(pollIntervalsRef.current).forEach(clearInterval);
+        };
     }, []);
 
     return (

@@ -95,6 +95,7 @@ class EmailListSerializer(serializers.ModelSerializer):
             'category',
             'summary',
             'snippet',
+            'ai_processed',
             'mailbox',
             'mailbox_email',
             'has_attachments',

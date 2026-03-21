@@ -153,23 +153,15 @@ class MailboxViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='sync_emails')
     def sync_emails(self, request, pk=None):
         """
-        Sync (fetch) emails for this mailbox.
+        Trigger a full two-phase sync for this mailbox.
 
         POST /api/mailboxes/{id}/sync_emails/
 
-        If the mailbox has IMAP credentials configured (imap_server + password),
-        it connects to the real server and fetches UNSEEN emails.
+        Phase 1: Fetches ALL emails from Gmail/IMAP (or generates demo data).
+        Phase 2: Runs AI pipeline on the latest 100 unprocessed emails.
 
-        If no credentials are set, it falls back to generating sample demo emails
-        so the AI classification pipeline can still be demonstrated.
-
-        Returns:
-            {
-                'message': str,
-                'emails_created': int,
-                'mailbox': str,
-                'mode': 'imap' | 'demo'
-            }
+        The sync runs in a background thread to avoid Render's 30s timeout.
+        Use GET /api/mailboxes/{id}/sync_status/ to poll for completion.
         """
         import threading
         import logging

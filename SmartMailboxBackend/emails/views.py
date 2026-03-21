@@ -11,12 +11,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import Email
 from .serializers import EmailSerializer, EmailListSerializer
 
-
-class EmailView(viewsets.ModelViewSet):
-    queryset = Email.objects.all()
-    
-
-
 from .filters import EmailFilter
 
 class EmailViewSet(viewsets.ModelViewSet):

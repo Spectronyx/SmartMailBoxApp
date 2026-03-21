@@ -92,6 +92,7 @@ class GmailService:
     def _process_message(self, msg_id) -> bool:
         """Fetch full message content, parse and save to Email model (no AI pipeline here)."""
         from emails.models import Email
+        from email.utils import parsedate_to_datetime
 
         try:
             msg_data = self.service.users().messages().get(userId='me', id=msg_id, format='raw').execute()
@@ -102,7 +103,14 @@ class GmailService:
             from emails.utils.text_processing import decode_headers
             subject = decode_headers(msg.get('Subject', '(No Subject)'))
             sender = decode_headers(msg.get('From', ''))
-            received_at = timezone.now() # Should ideally parse from headers
+            email_message_id = msg.get('Message-ID', '').strip()
+
+            # Parse actual Date header instead of using timezone.now()
+            date_str = msg.get('Date')
+            try:
+                received_at = parsedate_to_datetime(date_str) if date_str else timezone.now()
+            except Exception:
+                received_at = timezone.now()
 
             # Body extraction (hybrid HTML/Text)
             import bleach
@@ -142,7 +150,6 @@ class GmailService:
                     's', 'sub', 'sup', 'cite', 'abbr', 'address', 'center', 'font'
                 ]
                 
-                # CSS Sanitizer allows specific properties within style attributes
                 css_sanitizer = CSSSanitizer(allowed_css_properties=[
                     'color', 'background-color', 'font-size', 'font-weight', 'text-align', 
                     'padding', 'margin', 'border', 'width', 'height', 'line-height', 
@@ -166,21 +173,26 @@ class GmailService:
             else:
                 body = body_plain
 
-            # Save to database
-            if not Email.objects.filter(mailbox=self.mailbox, subject=subject, sender=sender).exists():
-                email_obj = Email.objects.create(
-                    mailbox=self.mailbox,
-                    subject=subject,
-                    sender=sender,
-                    body=body,
-                    received_at=received_at
-                )
+            # Dedup: use Message-ID if available, else fall back to subject+sender+date
+            if email_message_id:
+                if Email.objects.filter(mailbox=self.mailbox, message_id=email_message_id).exists():
+                    return False
+            else:
+                if Email.objects.filter(mailbox=self.mailbox, subject=subject, sender=sender, received_at=received_at).exists():
+                    return False
 
-                # Save attachments
-                self._save_attachments(msg, email_obj)
-                return True
-            
-            return False
+            email_obj = Email.objects.create(
+                mailbox=self.mailbox,
+                message_id=email_message_id or None,
+                subject=subject,
+                sender=sender,
+                body=body,
+                received_at=received_at
+            )
+
+            # Save attachments
+            self._save_attachments(msg, email_obj)
+            return True
 
         except Exception as e:
             logger.error(f"Error processing Gmail message {msg_id}: {e}")
